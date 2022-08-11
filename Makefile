@@ -1,27 +1,13 @@
 DESTDIR ?=
 PREFIX ?= /usr
 
-ifndef OBS_INCLUDE
-OBS_INCLUDE = ${PREFIX}/include/obs
-endif
-ifndef OBS_API_INCLUDE
-OBS_API_INCLUDE = ./
-endif
-ifndef OBS_LIB
-OBS_LIB = ${PREFIX}/lib
-endif
-ifndef FFmpegPath
-FFmpegPath = ${PREFIX}/include
-endif
-ifndef FFmpegLib
-FFmpegLib = ${PREFIX}/lib
-endif
-ifndef SDL_INCLUDE
-SDL_INCLUDE = ${PREFIX}/include/SDL2
-endif
-ifndef SDL_LIB
-SDL_LIB = ${PREFIX}/lib
-endif
+OBS_INCLUDE ?= ${PREFIX}/include/obs
+OBS_API_INCLUDE ?= ./
+OBS_LIB ?= ${PREFIX}/lib
+FFmpegPath ?= ${PREFIX}/include
+FFmpegLib ?= ${PREFIX}/lib
+SDL_INCLUDE ?= ${PREFIX}/include/SDL2
+SDL_LIB ?= ${PREFIX}/lib
 
 RM = rm -f
 
