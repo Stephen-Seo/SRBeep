@@ -2,13 +2,13 @@ DESTDIR ?=
 PREFIX ?= /usr
 
 ifndef OBS_INCLUDE
-OBS_INCLUDE = /usr/include/obs
+OBS_INCLUDE = ${PREFIX}/include/obs
 endif
 ifndef OBS_API_INCLUDE
 OBS_API_INCLUDE = ./
 endif
 ifndef OBS_LIB
-OBS_LIB = /usr/lib
+OBS_LIB = ${PREFIX}/lib
 endif
 ifndef FFmpegPath
 FFmpegPath = ${PREFIX}/include
