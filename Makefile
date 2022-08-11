@@ -8,16 +8,16 @@ ifndef OBS_LIB
 OBS_LIB = /usr/lib
 endif
 ifndef FFmpegPath
-FFmpegPath = $(HOME)/ffmpeg_sources/ffmpeg
+FFmpegPath = ${PREFIX}/include
 endif
 ifndef FFmpegLib
-FFmpegLib = $(HOME)/ffmpeg_build/lib
+FFmpegLib = ${PREFIX}/lib
 endif
 ifndef SDL_INCLUDE
-SDL_INCLUDE = $(HOME)/SDL2-2.0.10/include
+SDL_INCLUDE = ${PREFIX}/include/SDL2
 endif
 ifndef SDL_LIB
-SDL_LIB = $(HOME)/SDL2-2.0.10/build
+SDL_LIB = ${PREFIX}/lib
 endif
 
 DESTDIR ?=
@@ -26,7 +26,7 @@ PREFIX ?= /usr
 RM = rm -f
 
 CXX = g++
-CXXFLAGS = -g -Wall -std=c++11 -fPIC -I/usr/include/SDL2
+CXXFLAGS = -g -Wall -std=c++11 -fPIC
 
 INCLUDE = -I$(OBS_INCLUDE) -I$(OBS_API_INCLUDE) -I$(FFmpegPath) -I$(SDL_INCLUDE)
 LDFLAGS = -L$(OBS_LIB) -L$(FFmpegLib) -L$(SDL_LIB)
