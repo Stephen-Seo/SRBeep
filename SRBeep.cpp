@@ -124,7 +124,7 @@ void play_clip(const char *filepath)
 	Download at https://sourceforge.net/projects/simplestffmpegplayer/
 	*****************************************************************/
 	AVFormatContext *stream_start = NULL;
-	AVCodec *cdc = nullptr;
+	const AVCodec *cdc = nullptr;
 	int audioStreamIndex = -1;
 
 	if(avformat_open_input(&stream_start, filepath, NULL, NULL) != 0)
@@ -161,7 +161,7 @@ void play_clip(const char *filepath)
 	//get codec
 	AVCodecContext *cdx = avcodec_alloc_context3(NULL);
 	avcodec_parameters_to_context(cdx, stream_start->streams[audioStreamIndex]->codecpar);
-	AVCodec *codec = avcodec_find_decoder(cdx->codec_id);
+	const AVCodec *codec = avcodec_find_decoder(cdx->codec_id);
 	if(!codec)
 	{
 		blog(LOG_WARNING, "SRBeep: play_clip: Codec not supported");
@@ -171,9 +171,7 @@ void play_clip(const char *filepath)
 	avcodec_open2(cdx, codec, NULL);
 
 	//audio packet
-	AVPacket *packet;
-	packet = (AVPacket*)av_malloc(sizeof(AVPacket));
-	av_init_packet(packet);
+	AVPacket *packet = av_packet_alloc();
 
 	//Audio Parameters
 	uint64_t out_channel_layout = AV_CH_LAYOUT_STEREO;

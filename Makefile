@@ -20,10 +20,13 @@ ifndef SDL_LIB
 SDL_LIB = $(HOME)/SDL2-2.0.10/build
 endif
 
+DESTDIR ?=
+PREFIX ?= /usr
+
 RM = rm -f
 
 CXX = g++
-CXXFLAGS = -g -Wall -std=c++11 -fPIC
+CXXFLAGS = -g -Wall -std=c++11 -fPIC -I/usr/include/SDL2
 
 INCLUDE = -I$(OBS_INCLUDE) -I$(OBS_API_INCLUDE) -I$(FFmpegPath) -I$(SDL_INCLUDE)
 LDFLAGS = -L$(OBS_LIB) -L$(FFmpegLib) -L$(SDL_LIB)
@@ -44,25 +47,12 @@ $(LIB_OBJ): $(SRC)
 #Install for obs-studio from PPA
 .PHONY: install
 install:
-	sudo mkdir /usr/share/obs/obs-plugins/SRBeep
-	sudo cp ./resource/*.mp3 /usr/share/obs/obs-plugins/SRBeep/
-	sudo chmod 777 /usr/share/obs/obs-plugins/SRBeep/*.mp3
-	sudo cp $(LIB) /usr/lib/obs-plugins/
-	sudo cp ./depend/lib* /usr/lib/
+	install -D -m444 -t ${DESTDIR}/${PREFIX}/share/obs/obs-plugins/SRBeep/ ./resource/*.mp3
+	install -D -m444 -t ${DESTDIR}/${PREFIX}/lib/obs-plugins/ $(LIB)
 
 .PHONY: clean
 clean:
 	$(RM) $(LIB_OBJ) $(LIB)
-	sudo rm -r /usr/lib/obs-plugins/$(LIB)
-	sudo rm -r /usr/share/obs/obs-plugins/SRBeep
-	sudo rm /usr/lib/libavcodec.so.58
-	sudo rm /usr/lib/libavformat.so.58
-	sudo rm /usr/lib/libswresample.so.3
-	sudo rm /usr/lib/libavutil.so.56
-	#sudo rm /usr/lib/libx264.so.148
-	#sudo rm /usr/lib/libvpx.so.3
-	#sudo rm /usr/lib/libfdk-aac.so.1
-	sudo rm /usr/lib/libSDL2.so
 
 #Install for selfbuilt obs-studio
 #Place this folder in the obs-studio root folder (eg bah/rundir/obs-studio)
@@ -70,12 +60,12 @@ clean:
 #will need to change 64bit to 32bit if necessary
 #.PHONY: install
 #install:
-#	sudo mkdir ./data/obs-plugins/SRBeep
-#	sudo cp ./resource/*.mp3 ./data/64bit/obs-plugins/SRBeep/
-#	sudo chmod 777 ./data/obs-plugins/SRBeep/*.mp3
-#	sudo cp $(LIB) ./obs-plugins/64bit/
-#	#sudo cp ./depend/libSDL2.so /usr/lib/
-#	#sudo cp ./depend/lib* /usr/lib/
+#	mkdir ./data/obs-plugins/SRBeep
+#	cp ./resource/*.mp3 ./data/64bit/obs-plugins/SRBeep/
+#	chmod 777 ./data/obs-plugins/SRBeep/*.mp3
+#	cp $(LIB) ./obs-plugins/64bit/
+#	#cp ./depend/libSDL2.so /usr/lib/
+#	#cp ./depend/lib* /usr/lib/
 #	#may need to put:
 #	#	libavcodec.so.##
 #	#	libavcodec.so.##
@@ -94,7 +84,7 @@ clean:
 #.PHONY: clean
 #clean:
 #	$(RM) $(LIB_OBJ) $(LIB)
-#	sudo rm -r ./obs-plugins/64bit/$(LIB)
-#	sudo rm -r ./data/obs-plugins/SRBeep
-#	sudo rm /usr/lib/libSDL2.so
+#	rm -r ./obs-plugins/64bit/$(LIB)
+#	rm -r ./data/obs-plugins/SRBeep
+#	rm /usr/lib/libSDL2.so
 
