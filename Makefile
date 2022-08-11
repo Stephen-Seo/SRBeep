@@ -1,3 +1,6 @@
+DESTDIR ?=
+PREFIX ?= /usr
+
 ifndef OBS_INCLUDE
 OBS_INCLUDE = /usr/include/obs
 endif
@@ -19,9 +22,6 @@ endif
 ifndef SDL_LIB
 SDL_LIB = ${PREFIX}/lib
 endif
-
-DESTDIR ?=
-PREFIX ?= /usr
 
 RM = rm -f
 
