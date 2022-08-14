@@ -203,7 +203,7 @@ void play_clip(const char *filepath)
 	audioMutex.lock();
 
 	//init SDL
-	if(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER))
+	if(SDL_Init(SDL_INIT_AUDIO | SDL_INIT_TIMER))
 	{
 		audioMutex.unlock();
 
@@ -290,7 +290,7 @@ void play_clip(const char *filepath)
 	av_packet_free(&packet);
 	swr_free(&au_convert_ctx);
 	//Close SDL
-	SDL_CloseAudio();
+	SDL_QuitSubSystem(SDL_INIT_AUDIO | SDL_INIT_TIMER);
 	SDL_Quit();
 	//clean up
 	av_free(out_buffer);
