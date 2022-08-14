@@ -22,9 +22,13 @@ std::mutex audioMutex;
 std::thread st_stt_Thread, st_sto_Thread, rc_stt_Thread, rc_sto_Thread, bf_stt_Thread, bf_sto_Thread, ps_stt_Thread, ps_sto_Thread;
 
 #define	MAX_AUDIO_FRAME_SIZE 192000 // 1 second of 48khz 32bit audio
-static  Uint8 *audio_chunk;
-static  Uint32  audio_len;
-static  Uint8 *audio_pos;
+
+struct AudioData {
+	std::mutex data_mutex;
+	unsigned char *audio_chunk;
+	unsigned int audio_len;
+	unsigned long long audio_offset;
+};
 
 OBS_DECLARE_MODULE()
 
@@ -98,26 +102,38 @@ const char  *obs_module_description(void)
 
 void fill_audio(void *udata, Uint8 *stream, int len)
 {
-	/*****************************************************************
-	From simplest_ffmpeg_audio_player by leixiaohua1020
-	Download at https://sourceforge.net/projects/simplestffmpegplayer/
-	*****************************************************************/
-	//SDL 2.0
-	SDL_memset(stream, 0, len);
-	if(audio_len == 0)		/*  Only  play  if  we  have  data  left  */
-		return;
-	len = ((unsigned int)len > audio_len ? audio_len : len);	/*  Mix  as  much  data  as  possible  */
+//	/*****************************************************************
+//	From simplest_ffmpeg_audio_player by leixiaohua1020
+//	Download at https://sourceforge.net/projects/simplestffmpegplayer/
+//	*****************************************************************/
+//	//SDL 2.0
+//	SDL_memset(stream, 0, len);
+//	if(audio_len == 0)		/*  Only  play  if  we  have  data  left  */
+//		return;
+//	len = ((unsigned int)len > audio_len ? audio_len : len);	/*  Mix  as  much  data  as  possible  */
+//
+//	SDL_MixAudio(stream, audio_pos, len, SDL_MIX_MAXVOLUME);
+//	audio_pos += len;
+//	audio_len -= len;
 
-	SDL_MixAudio(stream, audio_pos, len, SDL_MIX_MAXVOLUME);
-	audio_pos += len;
-	audio_len -= len;
+	AudioData *data = (AudioData*)udata;
+	SDL_memset(stream, 0, len);
+	std::lock_guard<std::mutex> lock(data->data_mutex);
+	if (data->audio_len == 0) {
+		return;
+	}
+	len = ((unsigned int)len > data->audio_len ? data->audio_len : len);	/*  Mix  as  much  data  as  possible  */
+
+	SDL_MixAudio(stream, data->audio_chunk + data->audio_offset, len, SDL_MIX_MAXVOLUME);
+	data->audio_offset += len;
+	data->audio_len -= len;
 }
 
 void play_clip(const char *filepath)
 {
 	//fix problems with audio_len being assigned a value
-	static  Uint32  fixer;
-	audio_len = fixer;
+	//static  Uint32  fixer;
+	//audio_len = fixer;
 	//carry on
 	/*****************************************************************
 	Adapted from simplest_ffmpeg_audio_player by leixiaohua1020
@@ -195,6 +211,11 @@ void play_clip(const char *filepath)
 		return;
 	}
 
+	AudioData data;
+	data.audio_chunk = nullptr;
+	data.audio_len = 0;
+	data.audio_offset = 0;
+
 	SDL_AudioSpec wanted_spec;
 	wanted_spec.freq = cdx->sample_rate;
 	wanted_spec.format = AUDIO_S16SYS;
@@ -202,7 +223,7 @@ void play_clip(const char *filepath)
 	wanted_spec.silence = 0;
 	wanted_spec.samples = out_nb_samples;
 	wanted_spec.callback = fill_audio;
-	wanted_spec.userdata = cdx;
+	wanted_spec.userdata = &data;
 
 	if(SDL_OpenAudio(&wanted_spec, NULL) < 0)
 	{
@@ -248,20 +269,24 @@ void play_clip(const char *filepath)
 				index++;
 			}
 
-			while(audio_len > 0)//Wait until finish
+			data.data_mutex.lock();
+			while(data.audio_len > 0) {//Wait until finish
+				data.data_mutex.unlock();
 				SDL_Delay(1);
+				data.data_mutex.lock();
+			}
 
 			//Set audio buffer (PCM data)
-			audio_chunk = (Uint8*)out_buffer;
+			data.audio_chunk = (Uint8*)out_buffer;
 			//Audio buffer length
-			audio_len = out_buffer_size;
-			audio_pos = audio_chunk;
-
+			data.audio_len = out_buffer_size;
+			data.audio_offset = 0;
+			data.data_mutex.unlock();
 			//Play
-
 			SDL_PauseAudio(0);
 		}
 	}
+
 	av_packet_free(&packet);
 	swr_free(&au_convert_ctx);
 	//Close SDL
