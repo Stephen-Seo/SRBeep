@@ -74,7 +74,7 @@ private:
 
 public:
 
-	int get_remaining_space() {
+	unsigned int get_remaining_space() {
 		if (THREAD_SAFE) {
 			std::lock_guard<std::mutex> lock(mutex);
 			return get_remaining_space_impl();
@@ -85,7 +85,7 @@ public:
 
 private:
 
-	int get_remaining_space_impl() {
+	unsigned int get_remaining_space_impl() {
 		if (idx == end_idx) {
 			return full ? CAPACITY : 0;
 		} else if (idx < end_idx) {

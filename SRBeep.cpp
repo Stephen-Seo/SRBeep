@@ -332,7 +332,7 @@ void play_clip(const char *filepath)
 			while (out_buffer_size > 0) {
 				AudioData<1024> data;
 				data.audio_offset = 0;
-				data.audio_len = out_buffer_size > data.audio_capacity() ? data.audio_capacity() : out_buffer_size;
+				data.audio_len = (unsigned int)out_buffer_size > data.audio_capacity() ? data.audio_capacity() : out_buffer_size;
 				std::memcpy(data.audio_chunk, out_buffer + out_buffer_offset, data.audio_len);
 				out_buffer_offset += data.audio_len;
 				out_buffer_size -= data.audio_len;
