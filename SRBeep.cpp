@@ -337,7 +337,8 @@ void play_clip(const char *filepath)
 				out_buffer_offset += data.audio_len;
 				out_buffer_size -= data.audio_len;
 				while(!rb_data.push(data)) {
-					SDL_Delay(10);
+					SDL_PauseAudio(0);
+					SDL_Delay(30);
 				}
 			}
 
