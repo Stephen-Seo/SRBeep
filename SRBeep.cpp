@@ -8,6 +8,7 @@ A Docile Sloth adocilesloth@gmail.com
 #include <atomic>
 #include <sstream>
 #include <mutex>
+#include <cstring>
 
 extern "C"
 {
@@ -18,17 +19,25 @@ extern "C"
 	#include "SDL_thread.h"
 };
 
+#include "RingBuffer.h"
+
 std::mutex audioMutex;
 std::thread st_stt_Thread, st_sto_Thread, rc_stt_Thread, rc_sto_Thread, bf_stt_Thread, bf_sto_Thread, ps_stt_Thread, ps_sto_Thread;
 
 #define	MAX_AUDIO_FRAME_SIZE 192000 // 1 second of 48khz 32bit audio
 
+
+template <unsigned int CAPACITY>
 struct AudioData {
-	std::mutex data_mutex;
-	unsigned char *audio_chunk;
+	unsigned char audio_chunk[CAPACITY];
+	unsigned int audio_capacity() {
+		return CAPACITY;
+	}
 	unsigned int audio_len;
 	unsigned long long audio_offset;
 };
+
+using RingBufferT = RingBuffer<AudioData<1024>, 32, true>;
 
 OBS_DECLARE_MODULE()
 
@@ -116,17 +125,37 @@ void fill_audio(void *udata, Uint8 *stream, int len)
 //	audio_pos += len;
 //	audio_len -= len;
 
-	AudioData *data = (AudioData*)udata;
 	SDL_memset(stream, 0, len);
-	std::lock_guard<std::mutex> lock(data->data_mutex);
-	if (data->audio_len == 0) {
-		return;
-	}
-	len = ((unsigned int)len > data->audio_len ? data->audio_len : len);	/*  Mix  as  much  data  as  possible  */
 
-	SDL_MixAudio(stream, data->audio_chunk + data->audio_offset, len, SDL_MIX_MAXVOLUME);
-	data->audio_offset += len;
-	data->audio_len -= len;
+	RingBufferT *buffers = (RingBufferT*)udata;
+	int stream_offset = 0;
+	while (len > 0) {
+		bool emptied = false;
+		{
+			auto locked_top = buffers->locked_top();
+			AudioData<1024> *adata = std::get<0>(locked_top);
+			if (adata == nullptr) {
+				break;
+			}
+			int contained_size = adata->audio_len - adata->audio_offset;
+			int mix_size = len > contained_size ? contained_size : len;
+			SDL_MixAudio(stream + stream_offset, adata->audio_chunk + adata->audio_offset, mix_size, SDL_MIX_MAXVOLUME);
+			stream_offset += mix_size;
+			adata->audio_offset += mix_size;
+			len -= mix_size;
+			if (adata->audio_offset == adata->audio_len) {
+				emptied = true;
+			}
+		}
+
+		if (emptied) {
+			buffers->pop(nullptr);
+		}
+
+		if (buffers->is_empty()) {
+			break;
+		}
+	}
 }
 
 void play_clip(const char *filepath)
@@ -145,15 +174,14 @@ void play_clip(const char *filepath)
 
 	if(avformat_open_input(&stream_start, filepath, NULL, NULL) != 0)
 	{
-		blog(LOG_WARNING, "SRBeep: play_clip: Failed to open file");
-		blog(LOG_WARNING, filepath);
+		blog(LOG_WARNING, "SRBeep: play_clip: Failed to open file \"%s\"", filepath);
 		return;
 	}
 
 	if(avformat_find_stream_info(stream_start, NULL) < 0)
 	{
 		avformat_close_input(&stream_start);
-		blog(LOG_WARNING, "SRBeep: play_clip: Failed to find stream_start_sound.mp3's stream info");
+		blog(LOG_WARNING, "SRBeep: play_clip: Failed to find audio file's stream info");
 		return;
 	}
 
@@ -161,30 +189,23 @@ void play_clip(const char *filepath)
 	if(audioStreamIndex < 0)
 	{
 		avformat_close_input(&stream_start);
-		blog(LOG_WARNING, "SRBeep: play_clip: Failed to find audio stream in stream_start_sound.mp3");
+		blog(LOG_WARNING, "SRBeep: play_clip: Failed to find audio stream in audio file");
 		return;
 	}
-	//get audio stream
-	audioStreamIndex = -1;
-	for(unsigned int i = 0; i < stream_start->nb_streams; i++)
-	{
-		if(stream_start->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_AUDIO)
-		{
-			audioStreamIndex = i;
-			break;
-		}
+
+	AVCodecContext *cdx = avcodec_alloc_context3(cdc);
+	if (!cdx) {
+		avformat_close_input(&stream_start);
+		blog(LOG_WARNING, "SRBeep: play_clip: Failed to avcodec_alloc_context3(cdc)");
 	}
-	//get codec
-	AVCodecContext *cdx = avcodec_alloc_context3(NULL);
+
 	avcodec_parameters_to_context(cdx, stream_start->streams[audioStreamIndex]->codecpar);
-	const AVCodec *codec = avcodec_find_decoder(cdx->codec_id);
-	if(!codec)
-	{
-		blog(LOG_WARNING, "SRBeep: play_clip: Codec not supported");
+	if (avcodec_open2(cdx, cdc, nullptr) != 0) {
+		avcodec_free_context(&cdx);
+		avformat_close_input(&stream_start);
+		blog(LOG_WARNING, "SRBeep: play_clip: Failed to avcodec_open2(...)");
 		return;
 	}
-	//openm codec
-	avcodec_open2(cdx, codec, NULL);
 
 	//audio packet
 	AVPacket *packet = av_packet_alloc();
@@ -194,10 +215,9 @@ void play_clip(const char *filepath)
 	int out_nb_samples = cdx->frame_size;
 	AVSampleFormat out_sample_fmt = AV_SAMPLE_FMT_S16;
 	int out_sample_rate = 44100;
-	int out_channels = av_get_channel_layout_nb_channels(out_channel_layout);
-	//Buffer Size
-	int out_buffer_size = av_samples_get_buffer_size(NULL, out_channels, out_nb_samples, out_sample_fmt, 1);
-	uint8_t *out_buffer = (uint8_t*)av_malloc(MAX_AUDIO_FRAME_SIZE * 2);
+	int out_buffer_size = 0;
+	const int out_buffer_capacity = MAX_AUDIO_FRAME_SIZE * 2;
+	uint8_t *out_buffer = (uint8_t*)av_malloc(out_buffer_capacity);
 	AVFrame *frame = av_frame_alloc();
 
 	audioMutex.lock();
@@ -205,16 +225,17 @@ void play_clip(const char *filepath)
 	//init SDL
 	if(SDL_Init(SDL_INIT_AUDIO | SDL_INIT_TIMER))
 	{
+		av_packet_free(&packet);
+		av_freep(&out_buffer);
+		av_frame_free(&frame);
+		avformat_close_input(&stream_start);
+		avcodec_free_context(&cdx);
+		blog(LOG_WARNING, "SRBeep: play_clip: SDL init failed");
 		audioMutex.unlock();
-
-		blog(LOG_WARNING, "SRBEEP: play_clip: SDL init failed");
 		return;
 	}
 
-	AudioData data;
-	data.audio_chunk = nullptr;
-	data.audio_len = 0;
-	data.audio_offset = 0;
+	RingBufferT rb_data;
 
 	SDL_AudioSpec wanted_spec;
 	wanted_spec.freq = cdx->sample_rate;
@@ -223,27 +244,40 @@ void play_clip(const char *filepath)
 	wanted_spec.silence = 0;
 	wanted_spec.samples = out_nb_samples;
 	wanted_spec.callback = fill_audio;
-	wanted_spec.userdata = &data;
+	wanted_spec.userdata = &rb_data;
 
 	if(SDL_OpenAudio(&wanted_spec, NULL) < 0)
 	{
+		SDL_QuitSubSystem(SDL_INIT_AUDIO | SDL_INIT_TIMER);
+		SDL_Quit();
+		av_packet_free(&packet);
+		av_freep(&out_buffer);
+		av_frame_free(&frame);
+		avformat_close_input(&stream_start);
+		avcodec_free_context(&cdx);
+		blog(LOG_WARNING, "SRBeep: play_clip: SDL_OpenAudio failed");
 		audioMutex.unlock();
-
-		blog(LOG_WARNING, "SRBEEP: play_clip: SDL_OpenAudio failed");
 		return;
 	}
 
 	//FIX:Some Codec's Context Information is missing
 	int64_t in_channel_layout;
 	in_channel_layout = av_get_default_channel_layout(cdx->channels);
+
 	//Swr
-	struct SwrContext *au_convert_ctx;
-	au_convert_ctx = swr_alloc();
-	au_convert_ctx = swr_alloc_set_opts(au_convert_ctx, out_channel_layout, out_sample_fmt, out_sample_rate, in_channel_layout, cdx->sample_fmt, cdx->sample_rate, 0, NULL);
+	struct SwrContext *au_convert_ctx = swr_alloc_set_opts(
+						nullptr,
+						out_channel_layout,
+						out_sample_fmt,
+						out_sample_rate,
+						in_channel_layout,
+						cdx->sample_fmt,
+						cdx->sample_rate,
+						0,
+						nullptr);
 	swr_init(au_convert_ctx);
 
 	int ret;
-	int index = 0;
 
 	while(av_read_frame(stream_start, packet) >= 0)
 	{
@@ -256,45 +290,77 @@ void play_clip(const char *filepath)
 			{
 				ret = avcodec_receive_frame(cdx, frame);
 			}
+
 			if(ret < 0)
 			{
+				SDL_QuitSubSystem(SDL_INIT_AUDIO | SDL_INIT_TIMER);
+				SDL_Quit();
+				av_packet_free(&packet);
+				av_freep(&out_buffer);
+				av_frame_free(&frame);
+				avformat_close_input(&stream_start);
+				avcodec_free_context(&cdx);
+				blog(LOG_WARNING, "SRBeep: play_clip: Decoding audio frame error");
 				audioMutex.unlock();
-
-				blog(LOG_WARNING, "SRBEEP: play_clip: Decoding audio frame error");
 				return;
 			}
 			else
 			{
-				swr_convert(au_convert_ctx, &out_buffer, MAX_AUDIO_FRAME_SIZE, (const uint8_t**)frame->data, frame->nb_samples);
-				index++;
+				ret = swr_get_out_samples(au_convert_ctx, frame->nb_samples * 2);
+				if (ret > out_buffer_capacity) {
+					blog(
+							LOG_WARNING,
+							"SRBeep: play_clip: out samples greater than buffer (buffer size is %d, out size is %d)",
+							out_buffer_capacity,
+							ret);
+				}
+				out_buffer_size = swr_convert(
+							au_convert_ctx,
+							&out_buffer,
+							out_buffer_capacity / 2,
+							(const uint8_t**)frame->data,
+							frame->nb_samples
+						);
+				if (out_buffer_size > 0) {
+					out_buffer_size *= 2 + 2; // two channels, two bytes per sample (16-bit)
+				} else {
+					blog(LOG_WARNING, "SRBeep: play_clip: got negative value from swr_convert(...)");
+				}
 			}
 
-			data.data_mutex.lock();
-			while(data.audio_len > 0) {//Wait until finish
-				data.data_mutex.unlock();
-				SDL_Delay(1);
-				data.data_mutex.lock();
+			int out_buffer_offset = 0;
+			while (out_buffer_size > 0) {
+				AudioData<1024> data;
+				data.audio_offset = 0;
+				data.audio_len = out_buffer_size > data.audio_capacity() ? data.audio_capacity() : out_buffer_size;
+				std::memcpy(data.audio_chunk, out_buffer + out_buffer_offset, data.audio_len);
+				out_buffer_offset += data.audio_len;
+				out_buffer_size -= data.audio_len;
+				while(!rb_data.push(data)) {
+					SDL_Delay(10);
+				}
 			}
 
-			//Set audio buffer (PCM data)
-			data.audio_chunk = (Uint8*)out_buffer;
-			//Audio buffer length
-			data.audio_len = out_buffer_size;
-			data.audio_offset = 0;
-			data.data_mutex.unlock();
 			//Play
-			SDL_PauseAudio(0);
+			if (rb_data.get_remaining_space() < rb_data.get_capacity() / 2) {
+				SDL_PauseAudio(0);
+			}
 		}
+	}
+
+	while(!rb_data.is_empty()) {
+		SDL_PauseAudio(0);
+		SDL_Delay(400);
 	}
 
 	av_packet_free(&packet);
 	swr_free(&au_convert_ctx);
 	//Close SDL
+	SDL_CloseAudio();
 	SDL_QuitSubSystem(SDL_INIT_AUDIO | SDL_INIT_TIMER);
 	SDL_Quit();
 	//clean up
-	av_free(out_buffer);
-	avcodec_close(cdx);
+	av_freep(&out_buffer);
 	av_frame_free(&frame);
 	avformat_close_input(&stream_start);
 	avcodec_free_context(&cdx);
