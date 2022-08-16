@@ -149,7 +149,7 @@ void fill_audio(void *udata, Uint8 *stream, int len)
 		}
 
 		if (emptied) {
-			buffers->pop(nullptr);
+			buffers->pop(nullptr, nullptr);
 		}
 
 		if (buffers->is_empty()) {

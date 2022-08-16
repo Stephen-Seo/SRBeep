@@ -176,23 +176,23 @@ private:
 
 public:
 
-	void pop(void(*cleanup_fn)(T *value)) {
+	void pop(void(*cleanup_fn)(T *value, void *userdata), void *userdata) {
 		if (THREAD_SAFE) {
 			std::lock_guard<std::mutex> lock(mutex);
-			pop_impl(cleanup_fn);
+			pop_impl(cleanup_fn, userdata);
 		} else {
-			pop_impl(cleanup_fn);
+			pop_impl(cleanup_fn, userdata);
 		}
 	}
 
 private:
 
-	void pop_impl(void(*cleanup_fn)(T *value)) {
+	void pop_impl(void(*cleanup_fn)(T *value, void *userdata), void *userdata) {
 		if (idx == end_idx && !full) {
 			return;
 		}
 		if (cleanup_fn) {
-			cleanup_fn(&data[idx]);
+			cleanup_fn(&data[idx], userdata);
 		}
 		idx = (idx + 1) % CAPACITY;
 		if (full) {
