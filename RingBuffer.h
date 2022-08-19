@@ -25,16 +25,14 @@
  */
 
 
-#include <vector>
+#include <array>
 #include <memory>
 #include <mutex>
 
 template <typename T, unsigned int CAPACITY, bool THREAD_SAFE>
 class RingBuffer {
 public:
-	RingBuffer() : idx(0), end_idx(0), full(false) {
-		data.resize(CAPACITY);
-	}
+	RingBuffer() : idx(0), end_idx(0), full(false) {}
 
 	unsigned int get_capacity() {
 		return CAPACITY;
@@ -200,8 +198,8 @@ private:
 		}
 	}
 
+	std::array<T, CAPACITY> data;
 	std::mutex mutex;
-	std::vector<T> data;
 	unsigned int idx;
 	unsigned int end_idx;
 	bool full;

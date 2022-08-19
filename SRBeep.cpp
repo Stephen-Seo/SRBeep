@@ -9,6 +9,7 @@ A Docile Sloth adocilesloth@gmail.com
 #include <sstream>
 #include <mutex>
 #include <cstring>
+#include <array>
 
 extern "C"
 {
@@ -26,10 +27,9 @@ std::thread st_stt_Thread, st_sto_Thread, rc_stt_Thread, rc_sto_Thread, bf_stt_T
 
 #define	MAX_AUDIO_FRAME_SIZE 192000 // 1 second of 48khz 32bit audio
 
-
 template <unsigned int CAPACITY>
 struct AudioData {
-	unsigned char audio_chunk[CAPACITY];
+	std::array<unsigned char, CAPACITY> audio_chunk;
 	unsigned int audio_capacity() {
 		return CAPACITY;
 	}
@@ -139,7 +139,7 @@ void fill_audio(void *udata, Uint8 *stream, int len)
 			}
 			int contained_size = adata->audio_len - adata->audio_offset;
 			int mix_size = len > contained_size ? contained_size : len;
-			SDL_MixAudio(stream + stream_offset, adata->audio_chunk + adata->audio_offset, mix_size, SDL_MIX_MAXVOLUME);
+			SDL_MixAudio(stream + stream_offset, adata->audio_chunk.data() + adata->audio_offset, mix_size, SDL_MIX_MAXVOLUME);
 			stream_offset += mix_size;
 			adata->audio_offset += mix_size;
 			len -= mix_size;
@@ -333,7 +333,7 @@ void play_clip(const char *filepath)
 				AudioData<1024> data;
 				data.audio_offset = 0;
 				data.audio_len = (unsigned int)out_buffer_size > data.audio_capacity() ? data.audio_capacity() : out_buffer_size;
-				std::memcpy(data.audio_chunk, out_buffer + out_buffer_offset, data.audio_len);
+				std::memcpy(data.audio_chunk.data(), out_buffer + out_buffer_offset, data.audio_len);
 				out_buffer_offset += data.audio_len;
 				out_buffer_size -= data.audio_len;
 				while(!rb_data.push(data)) {
