@@ -211,7 +211,8 @@ void play_clip(const char *filepath)
 	AVPacket *packet = av_packet_alloc();
 
 	//Audio Parameters
-	uint64_t out_channel_layout = AV_CH_LAYOUT_STEREO;
+	AVChannelLayout out_channel_layout;
+	av_channel_layout_default(&out_channel_layout, 2);
 	int out_nb_samples = cdx->frame_size;
 	AVSampleFormat out_sample_fmt = AV_SAMPLE_FMT_S16;
 	int out_sample_rate = 44100;
@@ -240,7 +241,7 @@ void play_clip(const char *filepath)
 	SDL_AudioSpec wanted_spec;
 	wanted_spec.freq = cdx->sample_rate;
 	wanted_spec.format = AUDIO_S16SYS;
-	wanted_spec.channels = cdx->channels;
+	wanted_spec.channels = cdx->ch_layout.nb_channels;
 	wanted_spec.silence = 0;
 	wanted_spec.samples = out_nb_samples;
 	wanted_spec.callback = fill_audio;
@@ -261,23 +262,42 @@ void play_clip(const char *filepath)
 	}
 
 	//FIX:Some Codec's Context Information is missing
-	int64_t in_channel_layout;
-	in_channel_layout = av_get_default_channel_layout(cdx->channels);
+	AVChannelLayout in_channel_layout;
+	av_channel_layout_default(&in_channel_layout, cdx->ch_layout.nb_channels);
+	//int64_t in_channel_layout;
+	//in_channel_layout = av_get_default_channel_layout(cdx->channels);
+
+	int ret;
 
 	//Swr
-	struct SwrContext *au_convert_ctx = swr_alloc_set_opts(
-						nullptr,
-						out_channel_layout,
+	struct SwrContext *au_convert_ctx = nullptr;
+	ret = swr_alloc_set_opts2(
+						&au_convert_ctx,
+						&out_channel_layout,
 						out_sample_fmt,
 						out_sample_rate,
-						in_channel_layout,
+						&in_channel_layout,
 						cdx->sample_fmt,
 						cdx->sample_rate,
 						0,
 						nullptr);
-	swr_init(au_convert_ctx);
+	//swr_init(au_convert_ctx);
 
-	int ret;
+	if (ret != 0) {
+		SDL_QuitSubSystem(SDL_INIT_AUDIO | SDL_INIT_TIMER);
+		SDL_Quit();
+		av_packet_free(&packet);
+		av_freep(&out_buffer);
+		av_frame_free(&frame);
+		avformat_close_input(&stream_start);
+		avcodec_free_context(&cdx);
+		if (au_convert_ctx) {
+			swr_free(&au_convert_ctx);
+		}
+		blog(LOG_WARNING, "SRBeep: play_clip: swr_alloc_set_opts2 failed");
+		audioMutex.unlock();
+		return;
+	}
 
 	while(av_read_frame(stream_start, packet) >= 0)
 	{
