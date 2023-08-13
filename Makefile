@@ -12,7 +12,7 @@ SDL_LIB ?= ${PREFIX}/lib
 RM = rm -f
 
 CXX = g++
-CXXFLAGS = -g -Wall -std=c++11 -fPIC
+CXXFLAGS = -Wall -std=c++11 -fPIC
 
 INCLUDE = -I$(OBS_INCLUDE) -I$(OBS_API_INCLUDE) -I$(FFmpegPath) -I$(SDL_INCLUDE)
 LDFLAGS = -L$(OBS_LIB) -L$(FFmpegLib) -L$(SDL_LIB)
