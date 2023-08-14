@@ -303,6 +303,9 @@ void play_clip(const char *filepath)
 			if(ret == 0)
 			{
 				ret = avcodec_receive_frame(cdx, frame);
+				if (ret == AVERROR(EAGAIN)) {
+					continue;
+				}
 			}
 
 			if(ret < 0)
