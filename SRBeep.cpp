@@ -219,7 +219,7 @@ void play_clip(const char *filepath)
 	av_channel_layout_default(&out_channel_layout, 2);
 	int out_nb_samples = cdx->frame_size;
 	AVSampleFormat out_sample_fmt = AV_SAMPLE_FMT_S16;
-	int out_sample_rate = 44100;
+	int out_sample_rate = 48000;
 	int out_buffer_size = 0;
 	const int out_buffer_capacity = MAX_AUDIO_FRAME_SIZE * 2;
 	uint8_t *out_buffer = (uint8_t*)av_malloc(out_buffer_capacity);
@@ -243,9 +243,9 @@ void play_clip(const char *filepath)
 	RingBufferT rb_data;
 
 	SDL_AudioSpec wanted_spec;
-	wanted_spec.freq = cdx->sample_rate;
+	wanted_spec.freq = out_sample_rate;
 	wanted_spec.format = AUDIO_S16SYS;
-	wanted_spec.channels = cdx->ch_layout.nb_channels;
+	wanted_spec.channels = 2;
 	wanted_spec.silence = 0;
 	wanted_spec.samples = out_nb_samples;
 	wanted_spec.callback = fill_audio;
