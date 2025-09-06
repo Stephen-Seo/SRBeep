@@ -1,3 +1,9 @@
+This fork attempted to fix some things due to the plugin having been orignally created a long time ago.
+This fork is also no longer maintained because the original software was not released under an open source LICENSE.
+It should be GPLv2 following obs's LICENSE. The changes made therefore should also be GPLv2. Any other used software should be noted properly.
+
+The original README is as follows:
+
 /************************************
 A Docile Sloth adocilesloth@gmail.com
 ************************************/
