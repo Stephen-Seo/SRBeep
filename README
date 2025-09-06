@@ -2,6 +2,21 @@ This fork attempted to fix some things due to the plugin having been orignally c
 This fork is also no longer maintained because the original software was not released under an open source LICENSE.
 It should be GPLv2 following obs's LICENSE. The changes made therefore should also be GPLv2. Any other used software should be noted properly.
 
+ADDENDUM:
+
+It may be the case that obs is licensed under the GPLv2, but a plugin may not require the same restrictions.
+
+The reasoning is, that the GPLv2 is required upon derivative works, but an obs
+plugin does not derive from obs, but rather uses its API to provide additional
+functionality.
+
+As per the previous ruling in the infamous Oracle court case regarding APIs
+(Android related), using a public API is considered fair use. As long as a
+plugin does not use a substantial part of a licensed work, it is not quite a
+"derivative", and usage of the licensed-work's API should be considered fair
+use. This is clear to me as a plugin tends to add functionality, and not modify
+existing functionality.
+
 The original README is as follows:
 
 /************************************
